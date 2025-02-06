@@ -110,6 +110,7 @@ def main(file_path, output_file):
     for pair in similar_pairs:
         i, j, _ = pair
         similar_comment_nicknames.extend([nicknames[i], nicknames[j]])
+
     unique_nicknames = set(similar_comment_nicknames)
     nickname_ratio = len(unique_nicknames) / len(similar_comment_nicknames)
     if nickname_ratio < 0.5:  # 可根据实际情况调整阈值
@@ -117,6 +118,13 @@ def main(file_path, output_file):
 
     # 分析 IP 地址
     ip_ratio = analyze_ip_addresses(similar_pairs, ip_addresses)
+
+    # 标记重复评论
+    duplicate_comments = [False] * total_comments
+    for pair in similar_pairs:
+        i, j, _ = pair
+        duplicate_comments[i] = True
+        duplicate_comments[j] = True
 
     # 将结果保存到文件
     with open(output_file, 'w', encoding='utf-8') as f:
@@ -132,6 +140,11 @@ def main(file_path, output_file):
             f.write(f"评论 {i}: {comments[i]}\n")
             f.write(f"评论 {j}: {comments[j]}\n")
             f.write("-" * 50 + "\n")
+
+        # 写入重复评论标记
+        f.write("重复评论标记:\n")
+        for idx, is_duplicate in enumerate(duplicate_comments):
+            f.write(f"评论 {idx}: {'是' if is_duplicate else '否'}\n")
 
     print(f"结果已保存到 {output_file}")
     if similar_ratio > 0.2:  # 可根据实际情况调整阈值
