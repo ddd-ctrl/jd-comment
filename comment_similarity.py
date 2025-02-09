@@ -7,12 +7,19 @@ from datetime import datetime
 
 # 1. 数据读取
 def read_csv_data(file_path):
-    df = pd.read_csv(file_path)
-    comments = df['content'].tolist()
-    creation_times = df['creation_time'].tolist()
-    nicknames = df['nickname'].tolist()
-    ip_addresses = df['ip_address'].tolist()
-    return comments, creation_times, nicknames, ip_addresses
+    try:
+        df = pd.read_csv(file_path)
+        comments = df['content'].tolist()
+        creation_times = df['creation_time'].tolist()
+        nicknames = df['nickname'].tolist()
+        ip_addresses = df['ip_address'].tolist()
+        return comments, creation_times, nicknames, ip_addresses
+    except FileNotFoundError:
+        print(f"文件 {file_path} 未找到，请检查文件路径。")
+        return [], [], [], []
+    except KeyError as e:
+        print(f"CSV 文件中缺少必要的列: {e}")
+        return [], [], [], []
 
 
 # 2. 文本预处理（分词）
@@ -51,6 +58,8 @@ def analyze_similarity(similarity_matrix, threshold=0.8):
 
 # 计算高相似度评论数量占比
 def calculate_similar_ratio(similar_pairs, total_comments):
+    if total_comments == 0:
+        return 0
     similar_comment_ids = set()
     for pair in similar_pairs:
         i, j, _ = pair
@@ -62,6 +71,8 @@ def calculate_similar_ratio(similar_pairs, total_comments):
 
 # 分析 IP 地址
 def analyze_ip_addresses(similar_pairs, ip_addresses):
+    if not similar_pairs or not ip_addresses:
+        return 0
     similar_ip_addresses = []
     for pair in similar_pairs:
         i, j, _ = pair
@@ -73,11 +84,49 @@ def analyze_ip_addresses(similar_pairs, ip_addresses):
     return ip_ratio
 
 
+# 分析时间分布
+def analyze_time_distribution(similar_pairs, creation_times):
+    if not similar_pairs or not creation_times:
+        return None
+    similar_comment_times = []
+    for pair in similar_pairs:
+        i, j, _ = pair
+        similar_comment_times.extend([creation_times[i], creation_times[j]])
+    similar_comment_times.sort()
+    if similar_comment_times:
+        first_time = datetime.strptime(similar_comment_times[0], '%Y-%m-%d')
+        last_time = datetime.strptime(similar_comment_times[-1], '%Y-%m-%d')
+        time_diff = (last_time - first_time).total_seconds()
+        if time_diff < 3600:  # 可根据实际情况调整时间阈值（这里设为 1 小时）
+            print("高相似度评论集中在短时间内发布，可能存在刷单行为。")
+        return time_diff
+    return None
+
+
+# 分析评论者账号
+def analyze_nicknames(similar_pairs, nicknames):
+    if not similar_pairs or not nicknames:
+        return 0
+    similar_comment_nicknames = []
+    for pair in similar_pairs:
+        i, j, _ = pair
+        similar_comment_nicknames.extend([nicknames[i], nicknames[j]])
+    unique_nicknames = set(similar_comment_nicknames)
+    nickname_ratio = len(unique_nicknames) / len(similar_comment_nicknames)
+    if nickname_ratio < 0.5:  # 可根据实际情况调整阈值
+        print("高相似度评论来自少数账号，可能存在刷单行为。")
+    return nickname_ratio
+
+
 # 主函数
 def main(file_path, output_file):
     # 读取数据
     comments, creation_times, nicknames, ip_addresses = read_csv_data(file_path)
     total_comments = len(comments)
+
+    if total_comments == 0:
+        print("未读取到有效评论数据，请检查文件内容。")
+        return
 
     # 文本预处理
     processed_comments = preprocess_text(comments)
@@ -92,29 +141,10 @@ def main(file_path, output_file):
     similar_ratio = calculate_similar_ratio(similar_pairs, total_comments)
 
     # 分析高相似度评论的时间分布
-    similar_comment_times = []
-    for pair in similar_pairs:
-        i, j, _ = pair
-        similar_comment_times.extend([creation_times[i], creation_times[j]])
-    similar_comment_times.sort()
-    time_diff = None
-    if similar_comment_times:
-        first_time = datetime.strptime(similar_comment_times[0], '%Y-%m-%d')
-        last_time = datetime.strptime(similar_comment_times[-1], '%Y-%m-%d')
-        time_diff = (last_time - first_time).total_seconds()
-        if time_diff < 3600:  # 可根据实际情况调整时间阈值（这里设为 1 小时）
-            print("高相似度评论集中在短时间内发布，可能存在刷单行为。")
+    time_diff = analyze_time_distribution(similar_pairs, creation_times)
 
     # 分析高相似度评论的评论者账号
-    similar_comment_nicknames = []
-    for pair in similar_pairs:
-        i, j, _ = pair
-        similar_comment_nicknames.extend([nicknames[i], nicknames[j]])
-
-    unique_nicknames = set(similar_comment_nicknames)
-    nickname_ratio = len(unique_nicknames) / len(similar_comment_nicknames)
-    if nickname_ratio < 0.5:  # 可根据实际情况调整阈值
-        print("高相似度评论来自少数账号，可能存在刷单行为。")
+    nickname_ratio = analyze_nicknames(similar_pairs, nicknames)
 
     # 分析 IP 地址
     ip_ratio = analyze_ip_addresses(similar_pairs, ip_addresses)

@@ -1,55 +1,63 @@
 import requests
 import pandas as pd
+import time
+from datetime import datetime
 
-# 商品ID，可根据实际情况修改
-product_id = "10101991812161"
-# 要爬取的总页数
+# 配置参数
+product_id = "100039702174"  # 示例有效商品ID（小米手机）
 total_pages = 20
+delay_seconds = 3  # 每页请求间隔
 
-# 存储评论数据的列表
 comments_list = []
 
-# 循环遍历每一页
 for page in range(1, total_pages + 1):
-    # 构造请求URL
-    url = f"https://api.m.jd.com/?appid=item-v3&functionId=pc_club_productPageComments&client=pc&clientVersion=1.0.0&t=1738815087230&body=%7B%22productId%22%3A{product_id}%2C%22score%22%3A0%2C%22sortType%22%3A5%2C%22page%22%3A{page}%2C%22pageSize%22%3A10%2C%22isShadowSku%22%3A0%2C%22rid%22%3A0%2C%22fold%22%3A1%2C%22bbtf%22%3A%22%22%2C%22shield%22%3A%22%22%7D"
+    # 动态生成时间戳
+    current_timestamp = int(time.mktime(datetime.now().timetuple())) * 1000
+    
+    # 构造带动态参数的URL
+    url = f"https://api.m.jd.com/?appid=item-v3&functionId=pc_club_productPageComments&client=pc&clientVersion=1.0.0&t={current_timestamp}&body=%7B%22productId%22%3A{product_id}%2C%22score%22%3A0%2C%22sortType%22%3A5%2C%22page%22%3A{page}%2C%22pageSize%22%3A10%2C%22isShadowSku%22%3A0%2C%22rid%22%3A0%2C%22fold%22%3A1%7D"
 
-    # 设置请求头，模拟浏览器访问
+    # 完整浏览器头
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"}
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "Referer": f"https://item.jd.com/{product_id}.html",
+        "Accept": "application/json",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "Connection": "keep-alive"
+    }
 
     try:
-        # 发送请求
-        response = requests.get(url, headers=headers)
-        # 检查响应状态码
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
+        
+        # 检查有效响应
+        if 'comments' not in response.json():
+            print(f"第 {page} 页无评论数据，可能已达末尾")
+            break
 
-        # 解析JSON数据
         data = response.json()
-
-        # 提取评论信息
-        comments = data.get("comments", [])
-        for comment in comments:
-            # 提取需要的信息，如评论内容、评论时间、用户昵称等
-            content = comment.get("content", "")
-            creation_time = comment.get("creationTime", "")
-            nickname = comment.get("nickname", "")
-
-            # 将信息添加到列表中
+        for comment in data.get("comments", []):
             comments_list.append({
-                "nickname": nickname,
-                "creation_time": creation_time,
-                "content": content
+                "nickname": comment.get("nickname", ""),
+                "creation_time": comment.get("creationTime", ""),
+                "content": comment.get("content", ""),
+                "score": comment.get("score", 0),
+                "productColor": comment.get("productColor", ""),
+                "productSize": comment.get("productSize", "")
             })
 
-    except requests.RequestException as e:
-        print(f"请求出错: {e}")
-    except ValueError as e:
-        print(f"JSON解析出错: {e}")
+        print(f"已爬取第 {page} 页，累计 {len(comments_list)} 条评论")
+        time.sleep(delay_seconds)  # 请求间隔
 
-# 将评论数据转换为DataFrame
-df = pd.DataFrame(comments_list)
+    except requests.exceptions.RequestException as e:
+        print(f"请求失败: {str(e)[:50]}...")
+        break
+    except Exception as e:
+        print(f"处理异常: {str(e)[:50]}...")
+        continue
 
-# 保存为CSV文件
-df.to_csv("jd_comments.csv", index=False, encoding="utf-8-sig")
-print("评论数据已保存到 jd_comments.csv")
+if comments_list:
+    pd.DataFrame(comments_list).to_csv("jd_comments.csv", index=False, encoding="utf-8-sig")
+    print(f"成功保存 {len(comments_list)} 条评论到 jd_comments.csv")
+else:
+    print("未获取到任何评论，请检查：1.商品ID有效性 2.网络连接 3.反爬限制")
