@@ -1,8 +1,8 @@
 from sklearn.ensemble import RandomForestClassifier
 
 class RandomForestModel:
-    def __init__(self, n_estimators=100, random_state=42):
-        self.model = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
+    def __init__(self, n_estimators=100, max_depth=None, min_samples_split=2, random_state=42):
+        self.model = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, min_samples_split=min_samples_split, random_state=random_state)
 
     def fit(self, X, y):
         """
