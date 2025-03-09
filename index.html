@@ -49,6 +49,30 @@
             padding: 10px;
             margin-top: 20px;
         }
+        .button-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .button-container button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        /* 悬浮窗样式 */
+        #floating-window {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        #floating-window button {
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -72,10 +96,64 @@
         <h2>联系我们</h2>
         <p>如有任何问题或建议，请通过以下方式联系我们：</p>
         <p>Email: support@shujian.com</p>
+
+        <div class="button-container">
+            <button id="open-window">使用</button>
+        </div>
     </div>
 
     <footer>
         <p>版权所有 &copy; 2023 数鉴</p>
     </footer>
+
+    <!-- 引入悬浮窗文件 -->
+    <div id="floating-window-container"></div>
+    <script>
+        document.getElementById('open-window').addEventListener('click', function() {
+            fetch('/floating_window.html')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok: ' + response.statusText);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    document.getElementById('floating-window-container').innerHTML = data;
+                    // 添加事件监听器到新加载的悬浮窗按钮
+                    document.getElementById('identify-fraud').addEventListener('click', function() {
+                        const productId = document.getElementById('product-id').innerText;
+                        fetch('/scrape_and_identify', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ product_id: productId })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                alert('操作失败: ' + data.error);
+                            } else {
+                                alert('操作完成: ' + data.message);
+                                console.log('刷单评论:', data.fraudulent_comments);
+                                console.log('评估结果:', data.evaluation);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('操作失败，请重试。');
+                        });
+                    });
+
+                    document.getElementById('close-window').addEventListener('click', function() {
+                        document.getElementById('floating-window-container').innerHTML = '';
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading floating window:', error);
+                    alert('无法加载悬浮窗，请检查网络连接或文件路径。');
+                });
+        });
+    </script>
 </body>
 </html>
